@@ -41,3 +41,6 @@ impl RGB {
         Self(red, green, blue)
     }
 }
+
+pub const BLACK: RGB = RGB(0, 0, 0);
+pub const WHITE: RGB = RGB(255,255,255);

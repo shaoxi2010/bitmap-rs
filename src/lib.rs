@@ -1,7 +1,9 @@
 mod pix_type;
+mod asc_fonts;
 use std::{mem::size_of, cell::Cell, cmp::min};
 use thiserror::Error;
 pub use pix_type::*;
+pub use asc_fonts::*;
 
 #[derive(Error, Debug)]
 pub enum BitMapError {
@@ -94,7 +96,6 @@ impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
 
         for i in x..xend {
             for j in y..yend {
-                println!("get{} {}", i, j);
                 if let Some(val) = bitmap.get(i - x, j - y) {
                     self.set(i, j, val);
                 }
