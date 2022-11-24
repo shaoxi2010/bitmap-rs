@@ -6,6 +6,8 @@ pub use pix_type::*;
 pub use asc_fonts::*;
 use std::convert::From;
 
+const KSCAL:isize = 100;
+
 #[derive(Error, Debug)]
 pub enum BitMapError {
     #[error("The BitMap buffer is {buffer} need {total}")]
@@ -27,6 +29,7 @@ pub enum BitMapError {
 
 pub type BitMapResult<T> = Result<T, BitMapError>;
 
+#[derive(Clone, Copy)]
 pub struct Point {
     x:usize,
     y:usize,
@@ -39,13 +42,12 @@ impl From<(usize, usize)> for Point {
 }
 
 pub trait DrawIo {
-    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()>;
-
     type PixType;
     fn bitblit(&self, topleft: Point, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()>;
-
+    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()>;
     fn draw_text(&self, topleft: Point, color: RGB, text: &str, size: usize) -> BitMapResult<()>;
-
+    fn draw_line(&self, start: Point, end: Point, color: RGB) -> BitMapResult<()>;
+    fn draw_rectagle(&self, topleft: Point, width: usize, height:usize, color: RGB) -> BitMapResult<()>;
 }
 pub struct BitMap<'a, T> {
     data: &'a [Cell<T>],
@@ -84,19 +86,6 @@ impl<'a, T: PixExt+Copy> BitMap<'a, T> {
 }
 
 impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
-    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()> {
-        let val = T::rgb(color);
-        if topleft.x >= self.width {
-            return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
-        }
-        if topleft.y >= self.height {
-            return Err(BitMapError::OverFlowY { y: topleft.y, height: self.height});
-        }
-        let offset = self.width * topleft.y + topleft.x;
-        self.data[offset].set(val);
-        Ok(())
-    }
-
     type PixType = T;
 
     fn bitblit(&self, topleft: Point, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()> {
@@ -121,6 +110,19 @@ impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
         Ok(())
     }
 
+    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()> {
+        let val = T::rgb(color);
+        if topleft.x >= self.width {
+            return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
+        }
+        if topleft.y >= self.height {
+            return Err(BitMapError::OverFlowY { y: topleft.y, height: self.height});
+        }
+        let offset = self.width * topleft.y + topleft.x;
+        self.data[offset].set(val);
+        Ok(())
+    }
+
     fn draw_text(&self, topleft: Point, color: RGB, text: &str, size: usize) -> BitMapResult<()> {
         if topleft.x >= self.width {
             return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
@@ -141,4 +143,55 @@ impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
         
         Ok(())
     }
+
+    fn draw_line(&self, start: Point, end: Point, color: RGB) -> BitMapResult<()> {
+        let deltax = end.x as isize - start.x as isize;
+        let deltay = end.y as isize - start.y as isize;
+
+        if deltax == 0 {
+            let x = start.x;
+            let y = min(start.y, end.y);
+            for y in y..y + deltay.abs() as usize {
+                self.draw_pix((x,y).into(), color)?;
+            }
+        } else if deltay == 0 {
+            let y = start.y;
+            let x = min(start.x, end.x);
+            for x in x..x + deltax.abs() as usize {
+                self.draw_pix((x,y).into(), color)?;
+            }
+        } else if deltax.abs() > deltay.abs() {
+            let delta = deltax.abs();
+            let k = deltay * KSCAL / deltax;
+            let xstep = deltax / delta;
+            for i in 0..delta {
+                let x = start.x as isize + xstep * i; 
+                let y = k * i * xstep / KSCAL+ start.y as isize;
+                self.draw_pix((x as usize, y as usize).into(), color)?; 
+            }
+        } else {
+            let delta = deltay.abs();
+            let k = deltax * KSCAL / deltay;
+            let ystep = deltay / delta;
+            for i in 0..delta {
+                let y = start.y as isize + ystep * i;
+                let x = k * i * ystep / KSCAL + start.x as isize;
+                self.draw_pix((x as usize, y as usize).into(), color)?; 
+            }
+        }
+        Ok(())
+    }
+
+    fn draw_rectagle(&self, topleft: Point, width: usize, height:usize, color: RGB) -> BitMapResult<()> {
+        let topright = (topleft.x + width, topleft.y);
+        let bottomleft = (topleft.x , topleft.y + height);
+        let bottomright = (topleft.x +  width, topleft.y + height);
+
+        self.draw_line(topleft, topright.into(), color)?;
+        self.draw_line(topleft, bottomleft.into(), color)?;
+        self.draw_line(bottomright.into(), topright.into(), color)?;
+        self.draw_line(bottomright.into(), bottomleft.into(), color)?;
+        Ok(())
+    }
+
 }
