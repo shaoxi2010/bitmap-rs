@@ -26,7 +26,7 @@ impl AsciiFont {
         data
     }
 
-    pub fn char_bitmap<T: PixExt+Copy>(&self, index: char, rgb:RGB) -> CharBitMap<T> {
+    fn char_bitmap<T: PixExt+Copy>(&self, index: char, rgb:RGB) -> CharBitMap<T> {
         let char_data = self.map_to_data(index, rgb);
         CharBitMap {
             data: char_data,
@@ -52,3 +52,14 @@ pub const FONT_ASC12: AsciiFont = AsciiFont {data: include_bytes!("fonts/ASC12")
 pub const FONT_ASC16: AsciiFont = AsciiFont {data: include_bytes!("fonts/ASC16"), width:8, height:16};
 pub const FONT_ASC32: AsciiFont = AsciiFont {data: include_bytes!("fonts/ASC32"), width:16, height:32};
 pub const FONT_ASC48: AsciiFont = AsciiFont {data: include_bytes!("fonts/ASC48"), width:24, height:48};
+
+pub fn char_bitmap<T: PixExt+Copy>(index:char, size: usize, rgb:RGB) -> CharBitMap<T> {
+    let font = match size {
+        0..=12 => FONT_ASC12,
+        13..=16 => FONT_ASC16,
+        17..=32 => FONT_ASC32,
+        33..=48 => FONT_ASC48,
+        _ => panic!("no impl!!!"),
+    };
+    font.char_bitmap(index, rgb)
+}

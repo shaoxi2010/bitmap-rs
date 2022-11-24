@@ -1,7 +1,7 @@
-use bitmap::{BitMap, ARGB32, DrawIo, WHITE, PixExt, FONT_ASC16};
+use bitmap::{BitMap, ARGB32, DrawIo, WHITE, PixExt, char_bitmap};
 
 fn main() {
-    let mut char = FONT_ASC16.char_bitmap('c', WHITE);
+    let mut char = char_bitmap('c', 16, WHITE);
     let mut data2 = vec![ARGB32::default(); 16*16];
     let bitmap2 = BitMap::new(&mut data2, 16, 16).unwrap();
     bitmap2.bitblit(0, 0, &char.bitmap()).unwrap();
