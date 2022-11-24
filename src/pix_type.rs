@@ -1,7 +1,28 @@
+use std::mem::size_of;
+use super::{BitMap, BitMapResult};
+
 pub trait PixExt {
     type Target;
     fn blend(self) -> Self::Target;
     fn rgb(rgb:RGB) -> Self;
+}
+
+#[cfg(feature="minifb")]
+pub trait Minifb where Self: Sized {
+    type From;
+    fn transform(source: &mut [Self::From]) -> &mut [Self];
+    fn painter(source: &mut [Self::From], width: usize, height: usize, closure: impl FnOnce(BitMap<Self>)->BitMapResult<()>) -> BitMapResult<()>;
+}
+
+pub trait Painter where Self: Sized + PixExt + Copy {
+    fn painter(source: &mut [u8], width: usize, height: usize, closure: impl FnOnce(BitMap<Self>)->BitMapResult<()>) -> BitMapResult<()> {
+        let data = unsafe {
+            std::slice::from_raw_parts_mut(source as *mut _ as *mut Self, source.len() / size_of::<Self>())
+        };
+        let bitmap = BitMap::new(data, width, height)?;
+        closure(bitmap)?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -20,6 +41,8 @@ impl PixExt for RGB565 {
     }
 }
 
+impl Painter for RGB565 {}
+
 #[derive(Clone, Copy, Default)]
 pub struct ARGB32(u32);
 impl PixExt for ARGB32 {
@@ -32,6 +55,24 @@ impl PixExt for ARGB32 {
     fn rgb(rgb:RGB) -> Self {
         Self(0xff << 24 | (rgb.0 as u32) << 16 | (rgb.1 as u32) << 8 | rgb.2 as u32)
     }
+}
+
+impl Painter for ARGB32 {}
+
+#[cfg(feature="minifb")]
+impl Minifb for ARGB32 {
+    type From = u32;
+
+    fn transform(source: &mut [Self::From]) -> &mut [Self] {
+        unsafe { std::mem::transmute(source) }
+    }
+
+    fn painter(source: &mut [Self::From], width: usize, height: usize, closure: impl FnOnce(BitMap<Self>)->BitMapResult<()>) -> BitMapResult<()> {
+        let bitmap = BitMap::new(Self::transform(source), width, height)?;
+        closure(bitmap)?;
+        Ok(())
+    }
+
 }
 
 #[derive(Clone, Copy)]
