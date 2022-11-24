@@ -4,6 +4,7 @@ use std::{mem::size_of, cell::Cell, cmp::min};
 use thiserror::Error;
 pub use pix_type::*;
 pub use asc_fonts::*;
+use std::convert::From;
 
 #[derive(Error, Debug)]
 pub enum BitMapError {
@@ -26,17 +27,32 @@ pub enum BitMapError {
 
 pub type BitMapResult<T> = Result<T, BitMapError>;
 
+pub struct Point {
+    x:usize,
+    y:usize,
+}
+
+impl From<(usize, usize)> for Point {
+    fn from(value: (usize, usize)) -> Self {
+        Self { x: value.0, y: value.1 }
+    }
+}
+
 pub trait DrawIo {
-    fn draw_pix(&self, x:usize, y:usize, color: RGB) -> BitMapResult<()>;
+    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()>;
 
     type PixType;
-    fn bitblit(&self, x:usize, y:usize, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()>;
+    fn bitblit(&self, topleft: Point, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()>;
+
+    fn draw_text(&self, topleft: Point, color: RGB, text: &str, size: usize) -> BitMapResult<()>;
+
 }
 pub struct BitMap<'a, T> {
     data: &'a [Cell<T>],
     width: usize,
     height: usize
 }
+
 
 impl<'a, T: PixExt+Copy> BitMap<'a, T> {
     pub fn new(data: &'a mut [T], width: usize, height: usize) -> BitMapResult<Self> {
@@ -68,40 +84,61 @@ impl<'a, T: PixExt+Copy> BitMap<'a, T> {
 }
 
 impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
-    fn draw_pix(&self, x:usize, y:usize, color: RGB) -> BitMapResult<()> {
+    fn draw_pix(&self, topleft: Point, color: RGB) -> BitMapResult<()> {
         let val = T::rgb(color);
-        if x >= self.width {
-            return Err(BitMapError::OverFlowX { x: x, width: self.width });
+        if topleft.x >= self.width {
+            return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
         }
-        if y >= self.height {
-            return Err(BitMapError::OverFlowY { y: y, height: self.height});
+        if topleft.y >= self.height {
+            return Err(BitMapError::OverFlowY { y: topleft.y, height: self.height});
         }
-        let offset = self.width * y + x;
+        let offset = self.width * topleft.y + topleft.x;
         self.data[offset].set(val);
         Ok(())
     }
 
     type PixType = T;
 
-    fn bitblit(&self, x:usize, y:usize, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()> {
-        if x >= self.width {
-            return Err(BitMapError::OverFlowX { x: x, width: self.width });
+    fn bitblit(&self, topleft: Point, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()> {
+        if topleft.x >= self.width {
+            return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
         }
-        if y >= self.height {
-            return Err(BitMapError::OverFlowY { y: y, height: self.height});
+        if topleft.y >= self.height {
+            return Err(BitMapError::OverFlowY { y: topleft.y, height: self.height});
         }
         
-        let xend = min(x + bitmap.width, self.width);
-        let yend = min(y + bitmap.height, self.height);
+        let xend = min(topleft.x + bitmap.width, self.width);
+        let yend = min(topleft.y + bitmap.height, self.height);
 
-        for i in x..xend {
-            for j in y..yend {
-                if let Some(val) = bitmap.get(i - x, j - y) {
+        for i in topleft.x..xend {
+            for j in topleft.y..yend {
+                if let Some(val) = bitmap.get(i - topleft.x, j - topleft.y) {
                     self.set(i, j, val);
                 }
             }
         }
 
+        Ok(())
+    }
+
+    fn draw_text(&self, topleft: Point, color: RGB, text: &str, size: usize) -> BitMapResult<()> {
+        if topleft.x >= self.width {
+            return Err(BitMapError::OverFlowX { x: topleft.x, width: self.width });
+        }
+        if topleft.y >= self.height {
+            return Err(BitMapError::OverFlowY { y: topleft.y, height: self.height});
+        }
+        let text_bitmaps = text.chars()
+            .map(|char|char_bitmap(char, size, color))
+            .collect::<Vec<_>>();
+        let mut current_x = topleft.x;
+        for mut bitmap in text_bitmaps {
+            if self.bitblit((current_x, topleft.y).into(), &bitmap.bitmap()).is_err() {
+                break;
+            }
+            current_x += bitmap.bitmap().width;
+        }
+        
         Ok(())
     }
 }
