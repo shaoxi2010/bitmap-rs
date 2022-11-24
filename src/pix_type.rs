@@ -44,3 +44,6 @@ impl RGB {
 
 pub const BLACK: RGB = RGB(0, 0, 0);
 pub const WHITE: RGB = RGB(255,255,255);
+pub const RED: RGB = RGB(255,0,0);
+pub const GREEN: RGB = RGB(0,255,0);
+pub const BLUE: RGB = RGB(0,0,255);
