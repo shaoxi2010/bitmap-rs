@@ -48,6 +48,8 @@ pub trait DrawIo {
     fn draw_text(&self, topleft: Point, color: RGB, text: &str, size: usize) -> BitMapResult<()>;
     fn draw_line(&self, start: Point, end: Point, color: RGB) -> BitMapResult<()>;
     fn draw_rectagle(&self, topleft: Point, width: usize, height:usize, color: RGB) -> BitMapResult<()>;
+    fn fill_rectagle(&self, topleft: Point, width: usize, height:usize, color: RGB) -> BitMapResult<()>;
+    fn clear(&self) ->BitMapResult<()>;
 }
 pub struct BitMap<'a, T> {
     data: &'a [Cell<T>],
@@ -85,7 +87,7 @@ impl<'a, T: PixExt+Copy> BitMap<'a, T> {
     }
 }
 
-impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
+impl<'a, T:PixExt+Copy+Default> DrawIo for BitMap<'a, T> {
     type PixType = T;
 
     fn bitblit(&self, topleft: Point, bitmap: &BitMap<Self::PixType>) -> BitMapResult<()> {
@@ -145,6 +147,8 @@ impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
     }
 
     fn draw_line(&self, start: Point, end: Point, color: RGB) -> BitMapResult<()> {
+        let start: Point = (min(start.x, self.width - 1), min(start.y, self.height - 1)).into();
+        let end: Point = (min(end.x, self.width - 1), min(end.y, self.height - 1)).into();
         let deltax = end.x as isize - start.x as isize;
         let deltay = end.y as isize - start.y as isize;
 
@@ -194,4 +198,20 @@ impl<'a, T:PixExt+Copy> DrawIo for BitMap<'a, T> {
         Ok(())
     }
 
+    fn fill_rectagle(&self, topleft: Point, width: usize, height:usize, color: RGB) -> BitMapResult<()> {
+        for y in topleft.y..=topleft.y+height {
+            let line_start: Point = (topleft.x, y).into();   
+            let line_end: Point = (topleft.x + width, y).into();
+            self.draw_line(line_start, line_end, color)?;
+        }
+
+        Ok(())
+    }
+
+    fn clear(&self) ->BitMapResult<()> {
+        for pix in self.data {
+            pix.set(T::default());
+        }
+        Ok(())
+    }
 }
