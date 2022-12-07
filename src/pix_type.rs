@@ -16,12 +16,16 @@ pub trait Minifb where Self: Sized {
 
 pub trait Painter where Self: Sized + PixExt + Copy {
     fn painter(source: &mut [u8], width: usize, height: usize, closure: impl FnOnce(BitMap<Self>)->BitMapResult<()>) -> BitMapResult<()> {
+        let bitmap = Self::bitmap(source, width, height)?;
+        closure(bitmap)?;
+        Ok(())
+    }
+
+    fn bitmap(source: &mut [u8], width: usize, height: usize) -> BitMapResult<BitMap<Self>> {
         let data = unsafe {
             std::slice::from_raw_parts_mut(source as *mut _ as *mut Self, source.len() / size_of::<Self>())
         };
-        let bitmap = BitMap::new(data, width, height)?;
-        closure(bitmap)?;
-        Ok(())
+        Ok(BitMap::new(data, width, height)?)
     }
 }
 
